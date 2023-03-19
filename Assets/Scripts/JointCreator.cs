@@ -1,10 +1,13 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class JointCreator : MonoBehaviour
 {
+    public event Action OnCFDestroyed;
     [SerializeField] private ConfigurableJointMotion jointAngularXMotion = ConfigurableJointMotion.Locked;
     [SerializeField] private ConfigurableJointMotion jointAngularYMotion = ConfigurableJointMotion.Limited;
     [SerializeField] private ConfigurableJointMotion jointAngularZMotion = ConfigurableJointMotion.Locked;
@@ -13,13 +16,25 @@ public class JointCreator : MonoBehaviour
     [SerializeField] private float jointDamper = 10f;
     private float BREAK_FORCE;
     private Slider bf_slider;
+    Rigidbody rb;
+    private bool canTriggerEvent = true;
+    public bool isConnected;
+    private ConfigurableJoint myCF;
+    private GameObject otherConnnectBody;
 
     private void Start()
     {
         bf_slider = FindObjectOfType<Slider>();
+        rb = GetComponent<Rigidbody>();
+        rb.useGravity = false;
+        isConnected = false;
     }
     void OnCollisionEnter(Collision collision)
     {
+        if (collision.gameObject.CompareTag("Dustbin"))
+        { 
+            Destroy(gameObject);
+        }
         BREAK_FORCE =  bf_slider.value;
         // Get the other object that we collided with
         GameObject otherObject = collision.gameObject;
@@ -31,7 +46,6 @@ public class JointCreator : MonoBehaviour
             // The other object does not have a JointCreator script, so we can't create a joint
             return;
         }
-
         // Check if the other object is already connected to us with a joint
         ConfigurableJoint[] existingJoints = otherObject.GetComponents<ConfigurableJoint>();
         foreach (ConfigurableJoint joint in existingJoints)
@@ -42,7 +56,6 @@ public class JointCreator : MonoBehaviour
                 return;
             }
         }
-
         // Check if we already have a joint with the other object
         ConfigurableJoint[] ourJoints = GetComponents<ConfigurableJoint>();
         foreach (ConfigurableJoint joint in ourJoints)
@@ -53,11 +66,26 @@ public class JointCreator : MonoBehaviour
                 return;
             }
         }
-
         // Create a joint component on this object and connect it to the other object
         ConfigurableJoint newJoint = gameObject.AddComponent<ConfigurableJoint>();
+        myCF = newJoint;
+        OnCFDestroyed += JointCreator_OnCFDestroyed;
+        canTriggerEvent = true;
+        otherConnnectBody = otherObject;
         newJoint.connectedBody = otherObject.GetComponent<Rigidbody>();
 
+        Rigidbody rigidbody1 = GetComponent<Rigidbody>();
+        if (rigidbody1 != null)
+        {
+            rigidbody1.useGravity = true;
+            isConnected = true;
+        }
+        Rigidbody rigidbody2 = newJoint.connectedBody.gameObject.GetComponent<Rigidbody>();
+        if (rigidbody2 != null)
+        {
+            collision.gameObject.GetComponent<JointCreator>().isConnected = true;
+            rigidbody2.useGravity = true;
+        }
         // Set the anchor point of the joint to the contact point position
         ContactPoint contact = collision.contacts[0];
         Vector3 localAnchor = transform.InverseTransformPoint(contact.point);
@@ -85,7 +113,40 @@ public class JointCreator : MonoBehaviour
         jointDrive.positionDamper = jointDamper;
         newJoint.angularXDrive = jointDrive;
         newJoint.angularYZDrive = jointDrive;
-    
+
+
     }
 
+    private void JointCreator_OnCFDestroyed()
+    {
+        Rigidbody otherRB = otherConnnectBody.GetComponent<Rigidbody>();
+        otherRB.gameObject.GetComponent<JointCreator>().isConnected = false;
+        isConnected = false;
+        rb.useGravity = false;
+        rb.velocity = Vector3.zero; rb.angularVelocity = Vector3.zero;
+        otherRB.useGravity = false;
+        otherRB.velocity = Vector3.zero; otherRB.angularVelocity = Vector3.zero;
+        otherConnnectBody = null;
+    }
+
+    private void Update()
+    {
+        if (myCF == null && canTriggerEvent)
+        {
+            canTriggerEvent = false;
+            OnCFDestroyed?.Invoke();
+        }
+        if(!isConnected)
+        {
+            rb.useGravity = false;
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+        if(isConnected && rb.useGravity == false)
+        {
+            print("Setting Gravity");
+            rb.useGravity = true;
+        }
+   
+    }
 }
