@@ -36,37 +36,29 @@ public class JointCreator : MonoBehaviour
             Destroy(gameObject);
         }
         BREAK_FORCE =  bf_slider.value;
-        // Get the other object that we collided with
         GameObject otherObject = collision.gameObject;
 
-        // Check if the other object has a JointCreator script attached
         JointCreator otherJointCreator = otherObject.GetComponent<JointCreator>();
         if (otherJointCreator == null)
         {
-            // The other object does not have a JointCreator script, so we can't create a joint
             return;
         }
-        // Check if the other object is already connected to us with a joint
         ConfigurableJoint[] existingJoints = otherObject.GetComponents<ConfigurableJoint>();
         foreach (ConfigurableJoint joint in existingJoints)
         {
             if (joint.connectedBody == GetComponent<Rigidbody>())
             {
-                // The other object is already connected to us, so we don't need to create another joint
                 return;
             }
         }
-        // Check if we already have a joint with the other object
         ConfigurableJoint[] ourJoints = GetComponents<ConfigurableJoint>();
         foreach (ConfigurableJoint joint in ourJoints)
         {
             if (joint.connectedBody == otherObject.GetComponent<Rigidbody>())
             {
-                // We already have a joint with the other object, so we don't need to create another joint
                 return;
             }
         }
-        // Create a joint component on this object and connect it to the other object
         ConfigurableJoint newJoint = gameObject.AddComponent<ConfigurableJoint>();
         myCF = newJoint;
         OnCFDestroyed += JointCreator_OnCFDestroyed;
@@ -86,15 +78,11 @@ public class JointCreator : MonoBehaviour
             collision.gameObject.GetComponent<JointCreator>().isConnected = true;
             rigidbody2.useGravity = true;
         }
-        // Set the anchor point of the joint to the contact point position
         ContactPoint contact = collision.contacts[0];
         Vector3 localAnchor = transform.InverseTransformPoint(contact.point);
         newJoint.anchor = localAnchor;
 
-        // Set the joint's axis
         newJoint.axis = Vector3.forward;
-
-        // Set the joint's motion and limits
         newJoint.angularXMotion = jointAngularXMotion;
         newJoint.angularYMotion = jointAngularYMotion;
         newJoint.angularZMotion = jointAngularZMotion;
