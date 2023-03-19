@@ -1,52 +1,75 @@
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
-using System.Collections;
 
-public class AWS_ObjectLoader : MonoBehaviour
+public class AWS_ObjectLoader : MonoBehaviour 
 {
-    public string s3ApiLink; // The API link to the S3 bucket object
-    public float scale = 1f; // The scale of the instantiated game object
-    private GameObject objectPrefab; // The prefab of the loaded 3D object
+    public string bucketName = "your-bucket-name";
+    public string region = "your-bucket-region";
+    public string url = "https://s3-{0}.amazonaws.com/{1}/";
 
-    IEnumerator Start()
+    private List<GameObject> fbxObjects = new List<GameObject>();
+
+    async void Start()
     {
-        UnityWebRequest www = UnityWebRequest.Get(s3ApiLink);
-        yield return www.SendWebRequest();
-
-        if (www.result != UnityWebRequest.Result.Success)
-        {
-            Debug.Log(www.error);
-        }
-        else
-        {
-            string contentType = www.GetResponseHeader("Content-Type");
-
-            if (contentType.StartsWith("text"))
-            {
-                Debug.Log(www.downloadHandler.text);
-            }
-            else if (contentType.StartsWith("application/octet-stream"))
-            {
-                objectPrefab = DownloadHandlerAssetBundle.GetContent(www).LoadAsset<GameObject>("YourObjectName");
-                SpawnObject();
-            }
-            else
-            {
-                Debug.Log("Unsupported content type: " + contentType);
-            }
-        }
+        await FetchAllFBXObjects(bucketName, "models/fbx/");
     }
 
-    void SpawnObject()
+    async Task<List<GameObject>> FetchAllFBXObjects(string bucketName, string prefix)
     {
-        // Instantiate the object as a game object
-        GameObject newObject = Instantiate(objectPrefab);
+        string url = $"https://{bucketName}.s3.amazonaws.com/{prefix}/";
 
-        // Set the scale of the game object
-        newObject.transform.localScale = new Vector3(scale, scale, scale);
+        UnityWebRequest request = UnityWebRequest.Get(url);
+        UnityWebRequestAsyncOperation operation = request.SendWebRequest();
 
-        // Position the game object in the scene as needed
-        newObject.transform.position = Vector3.zero; // Modify as needed
+        while (!operation.isDone)
+        {
+            await Task.Delay(100);
+        }
+
+        if (request.result != UnityWebRequest.Result.Success)
+        {
+            Debug.Log($"Error: {request.error}");
+            return null;
+        }
+
+        List<GameObject> fbxObjects = new List<GameObject>();
+
+        string response = request.downloadHandler.text;
+        string[] lines = response.Split('\n');
+
+        foreach (string line in lines)
+        {
+            if (line.Contains(".fbx"))
+            {
+                string[] words = line.Split('"');
+                string objectName = words[1];
+                string objectUrl = url + objectName;
+
+                UnityWebRequest objectRequest = UnityWebRequest.Get(objectUrl);
+                UnityWebRequestAsyncOperation objectOperation = objectRequest.SendWebRequest();
+
+                while (!objectOperation.isDone)
+                {
+                    await Task.Delay(100);
+                }
+
+                if (objectRequest.result != UnityWebRequest.Result.Success)
+                {
+                    Debug.Log($"Error: {objectRequest.error}");
+                }
+                else
+                {
+                    AssetBundle bundle = DownloadHandlerAssetBundle.GetContent(objectRequest);
+                    GameObject fbxObject = bundle.LoadAsset<GameObject>(objectName);
+                    fbxObjects.Add(fbxObject);
+                }
+            }
+        }
+
+        return fbxObjects;
     }
 }
 
