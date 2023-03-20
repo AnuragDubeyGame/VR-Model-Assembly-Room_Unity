@@ -6,70 +6,26 @@ using UnityEngine.Networking;
 
 public class AWS_ObjectLoader : MonoBehaviour 
 {
-    public string bucketName = "your-bucket-name";
-    public string region = "your-bucket-region";
-    public string url = "https://s3-{0}.amazonaws.com/{1}/";
+    public API api;
 
-    private List<GameObject> fbxObjects = new List<GameObject>();
-
-    async void Start()
+    public void LoadContent(string name)
     {
-        await FetchAllFBXObjects(bucketName, "models/fbx/");
+        DestroyAllChildren();
+        api.GetBundleObject(name, OnContentLoaded, transform);
     }
 
-    async Task<List<GameObject>> FetchAllFBXObjects(string bucketName, string prefix)
+    void OnContentLoaded(GameObject content)
     {
-        string url = $"https://{bucketName}.s3.amazonaws.com/{prefix}/";
+        //do something cool here
+        Debug.Log("Loaded: " + content.name);
+    }
 
-        UnityWebRequest request = UnityWebRequest.Get(url);
-        UnityWebRequestAsyncOperation operation = request.SendWebRequest();
-
-        while (!operation.isDone)
+    void DestroyAllChildren()
+    {
+        foreach (Transform child in transform)
         {
-            await Task.Delay(100);
+            Destroy(child.gameObject);
         }
-
-        if (request.result != UnityWebRequest.Result.Success)
-        {
-            Debug.Log($"Error: {request.error}");
-            return null;
-        }
-
-        List<GameObject> fbxObjects = new List<GameObject>();
-
-        string response = request.downloadHandler.text;
-        string[] lines = response.Split('\n');
-
-        foreach (string line in lines)
-        {
-            if (line.Contains(".fbx"))
-            {
-                string[] words = line.Split('"');
-                string objectName = words[1];
-                string objectUrl = url + objectName;
-
-                UnityWebRequest objectRequest = UnityWebRequest.Get(objectUrl);
-                UnityWebRequestAsyncOperation objectOperation = objectRequest.SendWebRequest();
-
-                while (!objectOperation.isDone)
-                {
-                    await Task.Delay(100);
-                }
-
-                if (objectRequest.result != UnityWebRequest.Result.Success)
-                {
-                    Debug.Log($"Error: {objectRequest.error}");
-                }
-                else
-                {
-                    AssetBundle bundle = DownloadHandlerAssetBundle.GetContent(objectRequest);
-                    GameObject fbxObject = bundle.LoadAsset<GameObject>(objectName);
-                    fbxObjects.Add(fbxObject);
-                }
-            }
-        }
-
-        return fbxObjects;
     }
 }
 
