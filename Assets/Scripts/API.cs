@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Networking;
@@ -10,6 +11,8 @@ public class API : MonoBehaviour
     const string BundleFolder = "https://stl-loader-adarsh.s3.amazonaws.com/Models/";
     public Material bonesMaterial;
     public string layerName = "Grabable";
+    public List<GameObject> UI_Buttons = new List<GameObject>();
+
     public void GetBundleObject(string assetName, UnityAction<GameObject> callback, Transform bundleParent)
     {
         StartCoroutine(GetDisplayBundleRoutine(assetName, callback, bundleParent));
@@ -51,6 +54,15 @@ public class API : MonoBehaviour
                 fbxObject.transform.parent = null;
                 bundle.Unload(false);
                 callback(fbxObject);
+
+                foreach (var item in UI_Buttons)
+                {
+                    if(assetName == item.transform.name)
+                    {
+                       GameObject loading = item.transform.Find("Loading").gameObject;
+                        loading.SetActive(false);
+                    }
+                }
             }
             else
             {
