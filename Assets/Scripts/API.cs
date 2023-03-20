@@ -1,5 +1,4 @@
 using System.Collections;
-using UnityEditor.Presets;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Networking;
@@ -10,8 +9,7 @@ public class API : MonoBehaviour
     
     const string BundleFolder = "https://stl-loader-adarsh.s3.amazonaws.com/Models/";
     public Material bonesMaterial;
-    public Preset XRI_Preset;
-
+    public string layerName = "Grabable";
     public void GetBundleObject(string assetName, UnityAction<GameObject> callback, Transform bundleParent)
     {
         StartCoroutine(GetDisplayBundleRoutine(assetName, callback, bundleParent));
@@ -38,15 +36,21 @@ public class API : MonoBehaviour
             if (bundle != null)
             {
                 string rootAssetPath = bundle.GetAllAssetNames()[0];
-                GameObject arObject = Instantiate(bundle.LoadAsset(rootAssetPath) as GameObject, bundleParent);
-                arObject.transform.localPosition = Vector3.zero;
-                arObject.GetComponent<Renderer>().material = bonesMaterial;
-                arObject.AddComponent<JointCreator>();
-                XRGrabInteractable xrI = arObject.AddComponent<XRGrabInteractable>();
-                XRI_Preset.ApplyTo(xrI);
-                arObject.transform.parent = null;
+                GameObject fbxObject = Instantiate(bundle.LoadAsset(rootAssetPath) as GameObject, bundleParent);
+                fbxObject.transform.localPosition = Vector3.zero;
+                fbxObject.GetComponent<Renderer>().material = bonesMaterial;
+                fbxObject.AddComponent<JointCreator>();
+
+                XRGrabInteractable xrI = fbxObject.AddComponent<XRGrabInteractable>();
+                int layerIndex = LayerMask.NameToLayer(layerName);
+                xrI.interactionLayerMask = 1 << layerIndex;
+
+                xrI.movementType = XRBaseInteractable.MovementType.VelocityTracking;
+                xrI.useDynamicAttach = true;
+                fbxObject.GetComponent<Rigidbody>().collisionDetectionMode = CollisionDetectionMode.Continuous;
+                fbxObject.transform.parent = null;
                 bundle.Unload(false);
-                callback(arObject);
+                callback(fbxObject);
             }
             else
             {
