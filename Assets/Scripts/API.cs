@@ -1,70 +1,46 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.Networking;
 using UnityEngine.XR.Interaction.Toolkit;
+/*using Amazon.S3;
+using Amazon.S3.Model;
+using Amazon.Runtime;*/
 
 public class API : MonoBehaviour
 {
-    
     const string ModelFolder = "https://stl-loader-adarsh.s3.amazonaws.com/Models/";
+    private const string bucketName = "stl-loader-adarsh";
+ /*   private AmazonS3Client s3Client;*/
+
     public Material bonesMaterial;
     public string layerName = "Grabable";
     public UI_button uiButtonTemplate;
     public Transform UI_Holder_CONTENT;
     public List<GameObject> UI_Buttons = new List<GameObject>();
 
-    private void Start()
-    {
-        StartCoroutine(GetListOfObjects(ModelFolder));
-    }
+
     public void GetBundleObject(string assetName, UnityAction<GameObject> callback, Transform bundleParent)
     {
         StartCoroutine(GetDisplayBundleRoutine(assetName, callback, bundleParent));
     }
-    private IEnumerator GetListOfObjects(string url)
-    {
-        using (UnityWebRequest request = UnityWebRequest.Get(url))
-        {
-            yield return request.SendWebRequest();
-            while(!request.isDone)
-            {
-                yield return null;
-            }
-            if (request.result == UnityWebRequest.Result.Success)
-            {
-                Debug.Log("Models Request Success");
-                print("Data Received : "+ request.downloadHandler.text);
-                string[] files = request.downloadHandler.text.Split('\n');
-                foreach (string file in files)
-                {
-                    Debug.Log("File: " + file);
-                }
-               /* string[] models = request.downloadHandler.text.Split('\n');
 
-                foreach (string model in models)
-                {
-                    GameObject newUI = Instantiate(uiButtonTemplate.gameObject);
-                    newUI.GetComponent<UI_button>().ModelName = model;
-                    newUI.transform.parent = UI_Holder_CONTENT.transform;
-                    newUI.transform.position = Vector3.zero;
-                    UI_Buttons.Add(newUI);
-                }*/
-            }
-            else
-            {
-                Debug.Log("Models Request Failed: " + request.error);
-            }
-        }
-    }
-    IEnumerator GetDisplayBundleRoutine(string assetName, UnityAction<GameObject> callback, Transform bundleParent)
+
+/* foreach (string model in models)
+   {
+       GameObject newUI = Instantiate(uiButtonTemplate.gameObject);
+       newUI.GetComponent<UI_button>().ModelName = model;
+       newUI.transform.parent = UI_Holder_CONTENT.transform;
+       newUI.transform.position = Vector3.zero;
+       UI_Buttons.Add(newUI);
+}*/
+IEnumerator GetDisplayBundleRoutine(string assetName, UnityAction<GameObject> callback, Transform bundleParent)
     {
 
         string bundleURL = ModelFolder + assetName;
 
-        Debug.Log("Requesting bundle at " + bundleURL);
+        UnityEngine.Debug.Log("Requesting bundle at " + bundleURL);
 
         //request asset bundle
         UnityWebRequest www = UnityWebRequestAssetBundle.GetAssetBundle(bundleURL);
@@ -72,7 +48,7 @@ public class API : MonoBehaviour
 
         if (www.isNetworkError)
         {
-            Debug.Log("Network error");
+            UnityEngine.Debug.Log("Network error");
         }
         else
         {
@@ -107,7 +83,7 @@ public class API : MonoBehaviour
             }
             else
             {
-                Debug.Log("Not a valid asset bundle");
+                UnityEngine.Debug.Log("Not a valid asset bundle");
             }
         }
     }
