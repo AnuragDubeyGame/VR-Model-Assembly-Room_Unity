@@ -9,7 +9,8 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.Runtime;
 using Amazon;
-
+using System.IO;
+using UnityEditor;
 
 public class API : MonoBehaviour
 {
@@ -63,33 +64,56 @@ public class API : MonoBehaviour
         });
     }
 
-    /*IEnumerator LoadGLB()
+    public IEnumerator LoadGLB(string assetName)
     {
-        // Download the GLB file from the remote server
-        using (WWW www = new WWW(glbUrl))
+        string bundleURL = BaseModelURL + assetName;
+
+        // Download the FBX file
+        WWW www = new WWW(bundleURL);
+        yield return www;
+
+        // Check for errors
+        if (!string.IsNullOrEmpty(www.error))
         {
-            yield return www;
-            if (!string.IsNullOrEmpty(www.error))
-            {
-            Debug.LogError($"Failed to load GLB file from {glbUrl}: {www.error}");
+            Debug.LogError(www.error);
             yield break;
-            }
-
-            // Parse the GLB file using the GLTF package
-            GLTFRoot gltfRoot = null;
-            GLTFParser.ParseJson(Encoding.ASCII.GetString(www.bytes), out gltfRoot);
-
-            // Create a new GameObject and add a GLTFComponent to it
-            GameObject modelObject = new GameObject("GLB Model");
-            GLTFComponent gltfComponent = modelObject.AddComponent<GLTFComponent>();
-            gltfComponent.GLTFRoot = gltfRoot;
-            gltfComponent.FileName = glbUrl;
-
-            // Load the GLB model using the GLTFComponent
-            yield return gltfComponent.Load();
         }
-    }*/
-    
+
+        // Save the FBX file to disk
+        string filePath = Path.Combine(Application.persistentDataPath, assetName);
+        File.WriteAllBytes(filePath, www.bytes);
+
+        // Import the FBX file into Unity
+        GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(filePath);
+        Instantiate(model);
+
+    }
+    private void OnApplicationQuit()
+    {
+        string path = Application.persistentDataPath;
+        if (Directory.Exists(path))
+        {
+            Directory.Delete(path, true);
+        }
+        Debug.Log("Persistent data deleted.");
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     public void GetBundleObject(string assetName, UnityAction<GameObject> callback, Transform bundleParent)
     {
         StartCoroutine(GetDisplayBundleRoutine(assetName, callback, bundleParent));
@@ -98,7 +122,7 @@ public class API : MonoBehaviour
     {
         string bundleURL = BaseModelURL + assetName;
 
-        UnityEngine.Debug.Log("Requesting bundle at " + bundleURL);
+        Debug.Log("Requesting bundle at " + bundleURL);
 
         //request asset bundle
         UnityWebRequest www = UnityWebRequestAssetBundle.GetAssetBundle(bundleURL);

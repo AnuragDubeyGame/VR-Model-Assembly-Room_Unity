@@ -11,7 +11,8 @@ public class AWS_ObjectLoader : MonoBehaviour
     public void LoadContent(string name)
     {
         DestroyAllChildren();
-        api.GetBundleObject(name, OnContentLoaded, transform);
+        StartCoroutine(api.LoadGLB(name));
+        //api.GetBundleObject(name, OnContentLoaded, transform);
     }
 
     void OnContentLoaded(GameObject content)
