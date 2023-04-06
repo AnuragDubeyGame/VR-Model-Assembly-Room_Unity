@@ -61,3 +61,4 @@ sysinfo.txt
 crashlytics-build.properties
 
 /Assets/Scripts/API.cs
+*.cs
