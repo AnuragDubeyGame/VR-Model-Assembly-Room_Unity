@@ -1,25 +1,26 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using UnityEngine;
-using UnityEngine.Events;
 using UnityEngine.Networking;
+using System.Text.RegularExpressions;
 using UnityEngine.XR.Interaction.Toolkit;
-using Amazon.S3;
-using Amazon.S3.Model;
-using Amazon.Runtime;
-using Amazon;
-using System.IO;
+using System.Threading.Tasks;
 using Dummiesman;
+using System.IO;
+using UnityEditor.ShaderGraph.Serialization;
+using System.Linq;
 
-    public class API : MonoBehaviour
+public class API : MonoBehaviour
     {
         private string bucketName = "stl-loader-adarsh";
          private string accessKey;
          private string secretKey;
         const string BaseModelURL = "https://stl-loader-adarsh.s3.amazonaws.com/";
 
-        private S_keys skeys;
+        public string userName;
+        public string repoName;
+        public string branchName;
+        public string personalAccessToken;
 
         public Material bonesMaterial;
         public string layerName = "Grabable";
@@ -31,44 +32,67 @@ using Dummiesman;
 
         private async void Start()
         {
-            UnityInitializer.AttachToGameObject(this.gameObject);
             UI_Buttons.Clear();
-            skeys = FindObjectOfType<S_keys>();
-            accessKey = skeys.AccessKey;
-            secretKey = skeys.SecretKey;
-            await GetListOfObjectsAsync();
+            StartCoroutine(GetListOfObjectsAsync());
         }
-        public async Task GetListOfObjectsAsync()
+        public IEnumerator GetListOfObjectsAsync()
         {
-            AWSCredentials credentials = new BasicAWSCredentials(accessKey, secretKey);
-            AmazonS3Client S3Client = new AmazonS3Client(credentials, RegionEndpoint.USEast1);
-            var listRequest = new ListObjectsRequest
+            print("Trying to access github files");
+            string url = "https://api.github.com/repos/" + userName + "/" + repoName + "/git/trees/" + branchName + "?recursive=1&path=Assets/Scripts/";
+            print(url);
+            UnityWebRequest request = UnityWebRequest.Get(url);
+            request.SetRequestHeader("Authorization", "token " + personalAccessToken);
+            request.SendWebRequest(); // use the async version of SendWebRequest
+
+            if (request.result == UnityWebRequest.Result.ConnectionError || request.result == UnityWebRequest.Result.ProtocolError)
             {
-                BucketName = bucketName
-            };
-            S3Client.ListObjectsAsync(listRequest, (response) =>
+                Debug.Log(request.error);
+            }
+            else
             {
-                if (response.Exception != null)
+                while(!request.isDone)
                 {
-                    Debug.Log("Exception : " + response.Exception);
+                    print(".");
+                    yield return null;
+                }
+                print("Resquest success : "+request.result);
+                string json = request.downloadHandler.text;
+                List<string> files = new List<string>();
+
+                Regex regex = new Regex("\"path\":\"([^\"]+)\"");
+                MatchCollection matches = regex.Matches(json);
+                
+                print("Got the data! : " + json);
+                GitHubTreeResponse treeResponse = JsonUtility.FromJson<GitHubTreeResponse>(request.downloadHandler.text);
+
+                List<GitHubObject> targetFolderObjects = treeResponse.tree
+                   .Where(obj => obj.path.StartsWith("Assets/Scripts/"))
+                   .ToList();
+
+                if (targetFolderObjects.Count > 0)
+                {
+                    Debug.Log("Found " + targetFolderObjects.Count + " objects in folder: " + "Assets/Scripts");
+                    foreach (GitHubObject obj in targetFolderObjects)
+                    {
+                        Debug.Log("Object path: " + obj.path + ", URL: " + obj.url);
+                    }
                 }
                 else
                 {
-                    foreach (var s3Object in response.Response.S3Objects)
-                    {
-                        GameObject newUI = Instantiate(uiButtonTemplate.gameObject);
-                        newUI.GetComponent<UI_button>().ModelName = s3Object.Key;
-                        newUI.transform.SetParent(UI_Holder_CONTENT.transform);
-                        newUI.transform.localPosition = Vector3.zero;
-                        newUI.transform.localScale = Vector3.one;
-                        UI_Buttons.Add(newUI);
-                        newUI.GetComponent<UI_button>().DisplayName();
-                    }
+                    Debug.LogError("No objects found in folder: " + "Assets/Scripts");
                 }
-            });
+        /*GameObject newUI = Instantiate(uiButtonTemplate.gameObject);
+        newUI.GetComponent<UI_button>().ModelName = (string)ch;
+        newUI.transform.SetParent(UI_Holder_CONTENT.transform);
+        newUI.transform.localPosition = Vector3.zero;
+        newUI.transform.localScale = Vector3.one;
+        UI_Buttons.Add(newUI);
+        newUI.GetComponent<UI_button>().DisplayName();*/
+    }
+
         }
 
-        public IEnumerator LoadGLB(string assetName)
+    public IEnumerator LoadGLB(string assetName)
         {
             string bundleURL = BaseModelURL + assetName;
             UnityWebRequest www = UnityWebRequest.Get(bundleURL);
@@ -128,60 +152,5 @@ using Dummiesman;
                     Directory.Delete(path, true);
                 }
                 Debug.Log("Persistent data deleted.");
-        }
-        public void GetBundleObject(string assetName, UnityAction<GameObject> callback, Transform bundleParent)
-        {
-            StartCoroutine(GetDisplayBundleRoutine(assetName, callback, bundleParent));
-        }
-        IEnumerator GetDisplayBundleRoutine(string assetName, UnityAction<GameObject> callback, Transform bundleParent)
-        {
-            string bundleURL = BaseModelURL + assetName;
-
-            Debug.Log("Requesting bundle at " + bundleURL);
-
-            //request asset bundle
-            UnityWebRequest www = UnityWebRequestAssetBundle.GetAssetBundle(bundleURL);
-            yield return www.SendWebRequest();
-
-            if (www.result == UnityWebRequest.Result.ConnectionError)
-            {
-                Debug.Log("Network error");
-            }
-            else
-            {
-                AssetBundle bundle = DownloadHandlerAssetBundle.GetContent(www);
-                if (bundle != null)
-                {
-                    string rootAssetPath = bundle.GetAllAssetNames()[0];
-                    GameObject fbxObject = Instantiate(bundle.LoadAsset(rootAssetPath) as GameObject, bundleParent);
-                    fbxObject.transform.localPosition = Vector3.zero;
-                    fbxObject.GetComponent<Renderer>().material = bonesMaterial;
-                    fbxObject.AddComponent<JointCreator>();
-
-                    XRGrabInteractable xrI = fbxObject.AddComponent<XRGrabInteractable>();
-                    int layerIndex = LayerMask.NameToLayer(layerName);
-                    xrI.interactionLayerMask = 1 << layerIndex;
-
-                    xrI.movementType = XRBaseInteractable.MovementType.VelocityTracking;
-                    xrI.useDynamicAttach = true;
-                    fbxObject.GetComponent<Rigidbody>().collisionDetectionMode = CollisionDetectionMode.Continuous;
-                    fbxObject.transform.parent = null;
-                    bundle.Unload(false);
-                    callback(fbxObject);
-
-                    foreach (var item in UI_Buttons)
-                    {
-                        if (assetName == item.transform.name)
-                        {
-                            GameObject loading = item.transform.Find("Loading").gameObject;
-                            loading.SetActive(false);
-                        }
-                    }
-                }
-                else
-                {
-                    UnityEngine.Debug.Log("Not a valid asset bundle");
-                }
-            }
         }
     }
